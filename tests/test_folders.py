@@ -138,3 +138,24 @@ def test_folder_unauthorized(client):
     response = client.get("/folders/1")
     
     assert response.status_code == 403
+
+
+def test_get_root_contents(client, folder_user_headers):
+    client.post(
+        "/folders",
+        json={"name": "RootFolder1"},
+        headers=folder_user_headers
+    )
+    client.post(
+        "/folders",
+        json={"name": "RootFolder2"},
+        headers=folder_user_headers
+    )
+    
+    response = client.get("/folders/root", headers=folder_user_headers)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert "folders" in data
+    assert "files" in data
+    assert len(data["folders"]) >= 2

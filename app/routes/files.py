@@ -19,7 +19,8 @@ class FileCreate(BaseModel):
 
 
 class FileUpdate(BaseModel):
-    name: str
+    name: Optional[str] = None
+    parent_folder_id: Optional[int] = None
 
 
 class FileResponse(BaseModel):
@@ -129,15 +130,39 @@ def download_file(
 def update_file(
     file_update: FileUpdate,
     file: dict = Depends(get_user_file),
+    current_user: dict = Depends(get_current_user),
 ):
-    mime_type, _ = mimetypes.guess_type(file_update.name)
+    if file_update.name is None and file_update.parent_folder_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one field (name or parent_folder_id) must be provided",
+        )
     
     with get_db() as conn:
         cursor = conn.cursor()
         
+        new_name = file_update.name if file_update.name else file["name"]
+        new_parent = file_update.parent_folder_id if file_update.parent_folder_id is not None else file["parent_folder_id"]
+        
+        if file_update.parent_folder_id is not None:
+            if file_update.parent_folder_id != 0:
+                cursor.execute(
+                    "SELECT id FROM folders WHERE id = ? AND user_id = ?",
+                    (file_update.parent_folder_id, current_user["id"]),
+                )
+                if cursor.fetchone() is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Target folder not found",
+                    )
+            else:
+                new_parent = None
+        
+        mime_type, _ = mimetypes.guess_type(new_name)
+        
         cursor.execute(
-            "UPDATE files SET name = ?, mime_type = ? WHERE id = ?",
-            (file_update.name, mime_type, file["id"]),
+            "UPDATE files SET name = ?, mime_type = ?, parent_folder_id = ? WHERE id = ?",
+            (new_name, mime_type, new_parent, file["id"]),
         )
         
         cursor.execute(

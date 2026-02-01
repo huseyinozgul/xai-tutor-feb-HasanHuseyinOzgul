@@ -173,3 +173,55 @@ def test_file_unauthorized(client):
     response = client.get("/files/1")
     
     assert response.status_code == 403
+
+
+def test_move_file_to_folder(client, file_user_headers):
+    folder_response = client.post(
+        "/folders",
+        json={"name": "TargetFolder"},
+        headers=file_user_headers
+    )
+    folder_id = folder_response.json()["id"]
+    
+    content = base64.b64encode(b"Move test").decode()
+    file_response = client.post(
+        "/files",
+        json={"name": "tomove.txt", "content": content},
+        headers=file_user_headers
+    )
+    file_id = file_response.json()["id"]
+    
+    response = client.patch(
+        f"/files/{file_id}",
+        json={"parent_folder_id": folder_id},
+        headers=file_user_headers
+    )
+    
+    assert response.status_code == 200
+    assert response.json()["parent_folder_id"] == folder_id
+
+
+def test_move_file_to_root(client, file_user_headers):
+    folder_response = client.post(
+        "/folders",
+        json={"name": "TempFolder"},
+        headers=file_user_headers
+    )
+    folder_id = folder_response.json()["id"]
+    
+    content = base64.b64encode(b"Move to root").decode()
+    file_response = client.post(
+        "/files",
+        json={"name": "movetoroot.txt", "content": content, "parent_folder_id": folder_id},
+        headers=file_user_headers
+    )
+    file_id = file_response.json()["id"]
+    
+    response = client.patch(
+        f"/files/{file_id}",
+        json={"parent_folder_id": 0},
+        headers=file_user_headers
+    )
+    
+    assert response.status_code == 200
+    assert response.json()["parent_folder_id"] is None

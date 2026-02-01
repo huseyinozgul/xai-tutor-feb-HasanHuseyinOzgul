@@ -34,6 +34,49 @@ class FolderContentsResponse(BaseModel):
     files: List[dict]
 
 
+class RootContentsResponse(BaseModel):
+    folders: List[dict]
+    files: List[dict]
+
+
+@router.get("/root", response_model=RootContentsResponse)
+def get_root_contents(current_user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT id, name, parent_folder_id, created_at FROM folders WHERE parent_folder_id IS NULL AND user_id = ?",
+            (current_user["id"],),
+        )
+        folders = [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "parent_folder_id": row["parent_folder_id"],
+                "created_at": row["created_at"],
+            }
+            for row in cursor.fetchall()
+        ]
+        
+        cursor.execute(
+            "SELECT id, name, size, mime_type, parent_folder_id, created_at FROM files WHERE parent_folder_id IS NULL AND user_id = ?",
+            (current_user["id"],),
+        )
+        files = [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "size": row["size"],
+                "mime_type": row["mime_type"],
+                "parent_folder_id": row["parent_folder_id"],
+                "created_at": row["created_at"],
+            }
+            for row in cursor.fetchall()
+        ]
+        
+        return {"folders": folders, "files": files}
+
+
 @router.post("", response_model=FolderResponse, status_code=status.HTTP_201_CREATED)
 def create_folder(
     folder: FolderCreate,
